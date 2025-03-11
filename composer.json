@@ -1,0 +1,8 @@
+{
+    "name": "vendor/google-api",
+    "description": "google-apis",
+    "license": "mit",
+    "require": {
+        "google/apiclient": "^2.18"
+    }
+}
