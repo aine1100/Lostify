@@ -1,18 +1,110 @@
 <?php
 session_start();
 require '../../vendor/autoload.php';
+require '../../config/db.php';
 
-// Fetch locations from API
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+
+$secret_key = "aine123";
+
+// Check for JWT token
+if (!isset($_COOKIE['jwt'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$jwt = $_COOKIE['jwt'];
+
+try {
+    $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
+    
+    // Set session variables from token
+    $_SESSION['user_id'] = $decoded->user_id;
+    $_SESSION['username'] = $decoded->username;
+    $_SESSION['email'] = $decoded->email;
+
+} catch (Exception $e) {
+    header("Location: login.php?error=invalid_token");
+    exit();
+}
+
+// Add this function to fetch documents from database
+function fetchDocuments($user_id, $conn) {
+    $stmt = $conn->prepare("SELECT * FROM lost_documents WHERE user_id = ? ORDER BY created_at DESC");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $documents = [];
+    while ($row = $result->fetch_assoc()) {
+        $documents[] = $row;
+    }
+    $stmt->close();
+    return $documents;
+}
+
+// Fetch user's documents
+$documents = fetchDocuments($_SESSION['user_id'], $conn);
+
+// Handle document upload
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $user_id = $_SESSION["user_id"];
+    $document_type = $_POST['document_type'];
+    $category = $_POST['category'];
+    $province = $_POST['province'];
+    $district = $_POST['district'];
+    $sector = $_POST['sector'];
+    $incident_date = $_POST['incident_date'];
+    $incident_time = $_POST['incident_time'];
+    $specific_location = $_POST['specific_location'];
+    $description = $_POST['description'];
+    // $status = $document_type === 'lost' ? 'lost' : 'found';
+
+    // File upload handling
+    $upload_dir = "../../uploads/";
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
+
+    $file_name = $_FILES["document_image"]["name"];
+    $file_tmp = $_FILES["document_image"]["tmp_name"];
+    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    
+    // Generate unique filename
+    $new_file_name = uniqid("doc_") . "." . $file_ext;
+    $file_path = $upload_dir . $new_file_name;
+    
+    if (move_uploaded_file($file_tmp, $file_path)) {
+        $db_file_path = "uploads/" . $new_file_name;
+        
+        // Insert into database
+        $stmt = $conn->prepare("INSERT INTO lost_documents (user_id, document_type, category, province, district, sector, 
+                              incident_date, incident_time, specific_location, description, document_image, created_at) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,  NOW())");
+        
+        $stmt->bind_param("issssssssss", $user_id, $document_type, $category, $province, $district, $sector, 
+                         $incident_date, $incident_time, $specific_location, $description, $db_file_path);
+        
+        if ($stmt->execute()) {
+            header("Location: document.php?success=1");
+            exit();
+        } else {
+            header("Location: document.php?error=db_error");
+            exit();
+        }
+      
+    } else {
+        header("Location: document.php?error=upload_failed");
+        exit();
+    }
+}
+
+// Function to fetch locations
 function fetchLocations() {
     $curl = curl_init();
     curl_setopt_array($curl, [
         CURLOPT_URL => "https://rwanda.p.rapidapi.com/provinces",
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => "",
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 30,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => "GET",
         CURLOPT_HTTPHEADER => [
             "x-rapidapi-host: rwanda.p.rapidapi.com",
             "x-rapidapi-key: 5e1e59cfdbmsh4c76c96fd73cd9cp1a957ejsn44db321aafc9"
@@ -20,33 +112,15 @@ function fetchLocations() {
     ]);
 
     $response = curl_exec($curl);
-    $err = curl_error($curl);
     curl_close($curl);
 
-    if ($err) {
-        error_log("cURL Error: " . $err);
-        return [];
-    }
-
     $data = json_decode($response, true);
-    
-    // Extract only the provinces array from the response
-    if (isset($data['data']) && is_array($data['data'])) {
-        return $data['data'];
-    }
-    
-    return [];
+    return $data['data'] ?? [];
 }
 
-// Fetch and store locations
+// Fetch Rwanda locations
 $rwandaLocations = fetchLocations();
-
-// Debug: Print locations data
-// echo "<!-- Debug Location Data: ";
-// print_r($locations);
-
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -186,58 +260,58 @@ $rwandaLocations = fetchLocations();
                     <button class="text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium">
                         Found
                     </button>
-                    <button class="text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium">
-                        Pending
-                    </button>
                 </div>
 
                 <!-- Documents Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <?php if (empty($documents)): ?>
-                    <div class="col-span-3 text-center py-12">
-                        <div class="text-gray-400 mb-4">
-                            <i class="fas fa-folder-open fa-3x"></i>
-                        </div>
-                        <h3 class="text-lg font-medium text-gray-900">No documents yet</h3>
-                        <p class="text-gray-500 mt-1">Start by reporting a lost or found document</p>
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-6 border-b border-gray-100">
+                        <h3 class="text-lg font-semibold text-gray-800">Recent Documents</h3>
                     </div>
-                    <?php else: ?>
-                        <?php foreach ($documents as $document): ?>
-                        <div class="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
-                            <div class="aspect-w-16 aspect-h-9">
-                                <img src="<?php echo htmlspecialchars($document['image_path']); ?>" 
-                                     alt="Document Image" 
-                                     class="w-full h-48 object-cover">
-                            </div>
-                            <div class="p-4">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <h3 class="text-lg font-medium text-gray-900"><?php echo htmlspecialchars($document['type']); ?></h3>
-                                        <p class="text-sm text-gray-500">
-                                            <i class="fas fa-map-marker-alt mr-1"></i>
-                                            <?php echo htmlspecialchars($document['location']); ?>
-                                            <span class="mx-1">•</span>
-                                            <i class="far fa-clock mr-1"></i>
-                                            <?php echo date('j M Y', strtotime($document['created_at'])); ?>
-                                        </p>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <?php if (empty($documents)): ?>
+                                <div class="text-center py-12">
+                                    <div class="text-gray-400 mb-4">
+                                        <i class="fas fa-folder-open fa-3x"></i>
                                     </div>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        <?php echo $document['status'] === 'found' ? 'bg-green-100 text-green-800' : 
-                                              ($document['status'] === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'); ?>">
-                                        <?php echo ucfirst($document['status']); ?>
-                                    </span>
+                                    <h3 class="text-lg font-medium text-gray-900">No documents yet</h3>
+                                    <p class="text-gray-500 mt-1">Start by reporting a lost or found document</p>
                                 </div>
-                                <p class="mt-2 text-sm text-gray-600"><?php echo htmlspecialchars($document['description']); ?></p>
-                                <div class="mt-4 flex justify-end">
-                                    <button onclick="viewDocument(<?php echo $document['id']; ?>)" 
-                                            class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                        View Details
-                                    </button>
-                                </div>
-                            </div>
+                            <?php else: ?>
+                                <?php foreach ($documents as $document): ?>
+                                    <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                                        <div class="flex-shrink-0">
+                                            <img src="../../<?php echo htmlspecialchars($document['document_image']); ?>" 
+                                                 alt="Document" 
+                                                 class="h-16 w-16 object-cover rounded">
+                                        </div>
+                                        <div class="ml-4 flex-1">
+                                            <h4 class="text-sm font-medium text-gray-900">
+                                                <?php echo htmlspecialchars($document['category']); ?>
+                                            </h4>
+                                            <p class="text-sm text-gray-500">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                                <?php echo htmlspecialchars($document['specific_location']); ?> • 
+                                                <i class="far fa-clock mr-1"></i>
+                                                <?php echo date('j M Y', strtotime($document['incident_date'])); ?>
+                                            </p>
+                                            <p class="text-sm text-gray-600 mt-1">
+                                                <?php echo htmlspecialchars($document['province']); ?>, 
+                                                <?php echo htmlspecialchars($document['district']); ?>, 
+                                                <?php echo htmlspecialchars($document['sector']); ?>
+                                            </p>
+                                        </div>
+                                        <div class="ml-4">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                                       <?php echo $document['document_type'] === 'found' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                                <?php echo ucfirst($document['document_type']); ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    </div>
                 </div>
             </main>
         </div>
@@ -254,7 +328,7 @@ $rwandaLocations = fetchLocations();
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <form action="process_document.php" method="POST" enctype="multipart/form-data" class="p-6">
+                    <form action="document.php" method="POST" enctype="multipart/form-data" class="p-6">
                         <input type="hidden" name="document_type" value="lost">
                         <div class="space-y-4">
                             <div>
