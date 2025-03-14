@@ -1,13 +1,16 @@
 <?php
+
+
 session_start();
 require '../../vendor/autoload.php'; 
+require_once '../../config/db.php';
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 $secret_key = "aine123";
 
 if (!isset($_COOKIE['jwt'])) {
-    header("Location: login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
@@ -23,9 +26,57 @@ try {
 
 } catch (Exception $e) {
     // Redirect if token is invalid or expired
-    header("Location: login.php?error=invalid_token");
+    header("Location: ../auth/login.php?error=invalid_token");
     exit();
 }
+
+// Function to fetch recent documents
+function fetchRecentDocuments($user_id, $conn) {
+    $documents = [];
+
+    // Fetch lost documents
+    $stmt = $conn->prepare("SELECT *, 'lost' AS document_type FROM lost_documents WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $documents[] = $row;
+    }
+    $stmt->close();
+
+    // Fetch found documents
+    $stmt = $conn->prepare("SELECT *, 'found' AS document_type FROM found_documents WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $documents[] = $row;
+    }
+    $stmt->close();
+
+    return $documents;
+}
+
+// Fetch user's recent documents
+$recentDocuments = fetchRecentDocuments($_SESSION['user_id'], $conn);
+
+// Fetch total document counts
+$totalLostDocuments = 0;
+$totalFoundDocuments = 0;
+
+$stmt = $conn->prepare("SELECT COUNT(*) FROM lost_documents WHERE user_id = ?");
+$stmt->bind_param("i", $_SESSION['user_id']);
+$stmt->execute();
+$stmt->bind_result($totalLostDocuments);
+$stmt->fetch();
+$stmt->close();
+
+$stmt = $conn->prepare("SELECT COUNT(*) FROM found_documents WHERE user_id = ?");
+$stmt->bind_param("i", $_SESSION['user_id']);
+$stmt->execute();
+$stmt->bind_result($totalFoundDocuments);
+$stmt->fetch();
+$stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -47,25 +98,20 @@ try {
                 </div>
                 <div class="mt-8 flex-grow flex flex-col">
                     <nav class="flex-1 px-2 space-y-1">
-                        <a href="dashboard.php" style="color:#102b48 " class="bg-blue-50 group flex items-center gap-5  px-2 py-2 text-sm font-medium rounded-md" id="home-tab">
+                        <a href="dashboard.php" style="color:#102b48" class="bg-blue-50 group flex items-center gap-5 px-2 py-2 text-sm font-medium rounded-md" id="home-tab">
                             <i class="fas fa-home h-4 w-4"></i>
                             Home
                         </a>
-                        <a href="document.php" class="text-gray-600 gap-5 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md" id="documents-tab">
-                            <i class="fas fa-folder  h-4 w-4"></i>
+                        <a href="document.php" class="text-gray-600 group flex items-center gap-5 px-2 py-2 text-sm font-medium rounded-md" onclick="navigateTo('document.php')">
+                            <i class="fas fa-folder h-4 w-4"></i>
                             My Documents
                         </a>
-                        <a href="#" class="text-gray-600 gap-5 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md" id="notifications-tab">
-                            <i class="fas fa-bell  h-4 w-4"></i>
-                            Notifications
-                            <!-- <span class="ml-auto bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs">4</span> -->
+                        <a href="alldocuments.php" class="text-gray-600 group flex items-center gap-5 px-2 py-2 text-sm font-medium rounded-md" onclick="navigateTo('alldocuments.php')">
+                            <i class="fas fa-bell h-4 w-4"></i>
+                            All Documents
                         </a>
-                        <a href="#" class="text-gray-600 hover:bg-gray-50 gap-5 group flex items-center px-2 py-2 text-sm font-medium rounded-md" id="rewards-tab">
-                            <i class="fas fa-gift  h-4 w-4"></i>
-                            Rewards
-                        </a>
-                        <a href="#" class="text-gray-600 gap-4 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md" id="profile-tab">
-                            <i class="fas fa-user  h-4 w-4"></i>
+                        <a href="profile.php" class="text-gray-600 gap-4 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md" onclick="navigateTo('profile.php')">
+                            <i class="fas fa-user h-4 w-4"></i>
                             Profile
                         </a>
                     </nav>
@@ -130,40 +176,65 @@ try {
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="bg-white rounded-lg shadow-sm p-6">
                             <div class="flex items-center justify-between">
-                                <h3 class="text-gray-500 text-sm">Total Documents</h3>
-                                <span class="text-green-500 text-xs">+12%</span>
+                                <h3 class="text-gray-500 text-sm">Total Lost Documents</h3>
                             </div>
-                            <p class="text-3xl font-bold text-gray-800 mt-2">28</p>
+                            <p class="text-3xl font-bold text-gray-800 mt-2"><?php echo $totalLostDocuments; ?></p>
                         </div>
-                        <!-- Similar stat cards for Connected, Potential Matches, and Success Rate -->
-        </div>
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-gray-500 text-sm">Total Found Documents</h3>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-800 mt-2"><?php echo $totalFoundDocuments; ?></p>
+                        </div>
+                    </div>
 
                     <!-- Recent Documents -->
                     <div class="bg-white rounded-lg shadow-sm">
                         <div class="p-6 border-b border-gray-100">
                             <h3 class="text-lg font-semibold text-gray-800">Recent Documents</h3>
-            </div>
-            <div class="p-6">
-                            <div class="space-y-4">
-                                <!-- Document Item -->
-                                <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-file-alt text-2xl text-gray-400"></i>
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h4 class="text-sm font-medium text-gray-900">Student ID Card</h4>
-                                        <p class="text-sm text-gray-500">Found near Library • 2 hours ago</p>
                         </div>
-                        <div class="ml-4">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            Pending
-                            </span>
+                        <div class="p-6">
+                            <div class="space-y-4">
+                                <?php if (empty($recentDocuments)): ?>
+                                    <div class="text-center py-12">
+                                        <div class="text-gray-400 mb-4">
+                                            <i class="fas fa-folder-open fa-3x"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">No recent documents</h3>
+                                        <p class="text-gray-500 mt-1">Start by reporting a lost or found document</p>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($recentDocuments as $document): ?>
+                                        <div class="flex items-center p-4 bg-gray-50 rounded-lg" data-type="<?php echo $document['document_type']; ?>">
+                                            <div class="flex-shrink-0">
+                                                <img src="../../<?php echo htmlspecialchars($document['document_image']); ?>" alt="Document" class="h-16 w-16 object-cover rounded">
+                                            </div>
+                                            <div class="ml-4 flex-1">
+                                                <h4 class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($document['category']); ?></h4>
+                                                <p class="text-sm text-gray-500">
+                                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                                    <?php echo htmlspecialchars($document['specific_location']); ?> •
+                                                    <i class="far fa-clock mr-1"></i>
+                                                    <?php echo date('j M Y', strtotime($document['incident_date'])); ?>
+                                                </p>
+                                                <p class="text-sm text-gray-600 mt-1">
+                                                    <?php echo htmlspecialchars($document['province']); ?>,
+                                                    <?php echo htmlspecialchars($document['district']); ?>,
+                                                    <?php echo htmlspecialchars($document['sector']); ?>
+                                                </p>
+                                            </div>
+                                            <div class="ml-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                                       <?php echo $document['document_type'] === 'found' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                                    <?php echo ucfirst($document['document_type']); ?>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
-                                <!-- More document items... -->
-                </div>
-            </div>
-        </div>
                 </div>
             </main>
     </div>
@@ -216,6 +287,10 @@ try {
                 // Add content switching logic here
             });
         });
+
+        function navigateTo(page) {
+            window.location.href = page; // Navigate to the specified page
+        }
     </script>
 </body>
 </html>

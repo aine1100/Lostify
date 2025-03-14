@@ -19,9 +19,10 @@
         <div class="md:hidden  text-3xl cursor-pointer" onclick="toggleMenu()">
             ☰
         </div>
-        <button class="text-white bg-blue-400 px-6 py-3 rounded-md hover:bg-blue-500 hidden md:flex">
+        <a href="./pages/auth/login.php"
+            class="text-white bg-blue-400 px-6 py-3 rounded-md hover:bg-blue-500 hidden md:flex">
             Get Started
-        </button>
+        </a>
     </nav>
     <!-- Centered mobile menu -->
     <ul class="menu hidden flex-col items-center justify-center gap-10  text-white w-full px-5 py-2 md:hidden text-center"
@@ -31,9 +32,9 @@
         <li class="w-full py-2"><a href="#">Features</a></li>
         <li class="w-full py-2"><a href="#">Testimonials</a></li>
         <li class="w-full flex justify-center">
-            <button class="text-white bg-blue-400 px-6 py-3 rounded-md hover:bg-blue-500">
+            <a href="./pages/auth/login.php" class="text-white bg-blue-400 px-6 py-3 rounded-md hover:bg-blue-500">
                 Get Started
-            </button>
+                <a />
         </li>
     </ul>
     <div class="bg-gray-100 items-start  flex flex-row  justify-between px-20 py-20">
@@ -514,33 +515,36 @@
 
             </div>
             <h1 style="color: #102b48;" class="text-4xl font-bold text-center">What they say about us</h1>
-            <p class="text-md w-full max-w-2xl text-center ">Hear from people who have successfully reunited with their lost documents through Lostify</p>
+            <p class="text-md w-full max-w-2xl text-center ">Hear from people who have successfully reunited with their
+                lost documents through Lostify</p>
             <div class="flex flex-row flex-wrap items-center justify-between w-full py-5">
-            <div class="flex flex-col p-5 rounded-md items-start justify-center shadow-lg gap-2">
-                <div class="flex  p-2 items-center  justify-center rounded-full">
-                    <img src="./assets/images/person1.jpg" alt="" class="w-10 h-10 rounded-full">
-                </div>
-              
-                <p style="w-full max-w-xl text-sm">I lost my document while travelling to Rwanda but when i used lostify i was able to find it</p>
-                <p class="text-md" style="color: #102b48;">Dushimire Aine</p>
+                <div class="flex flex-col p-5 rounded-md items-start justify-center shadow-lg gap-2">
+                    <div class="flex  p-2 items-center  justify-center rounded-full">
+                        <img src="./assets/images/person1.jpg" alt="" class="w-10 h-10 rounded-full">
+                    </div>
 
-            </div>
-            <div class="flex flex-col p-5 rounded-md items-start justify-center shadow-lg gap-2">
-                <div class="flex  p-2 items-center  justify-center rounded-full">
-                    <img src="./assets/images/person1.jpg" alt="" class="w-10 h-10 rounded-full">
-                </div>
-              
-                <p style="w-full max-w-xl text-sm">I lost my document while travelling to Rwanda but when i used lostify i was able to find it</p>
-                <p class="text-md" style="color: #102b48;">Mugabo Mike</p>
+                    <p style="w-full max-w-xl text-sm">I lost my document while travelling to Rwanda but when i used
+                        lostify i was able to find it</p>
+                    <p class="text-md" style="color: #102b48;">Dushimire Aine</p>
 
-            </div>
+                </div>
+                <div class="flex flex-col p-5 rounded-md items-start justify-center shadow-lg gap-2">
+                    <div class="flex  p-2 items-center  justify-center rounded-full">
+                        <img src="./assets/images/person1.jpg" alt="" class="w-10 h-10 rounded-full">
+                    </div>
+
+                    <p style="w-full max-w-xl text-sm">I lost my document while travelling to Rwanda but when i used
+                        lostify i was able to find it</p>
+                    <p class="text-md" style="color: #102b48;">Mugabo Mike</p>
+
+                </div>
 
             </div>
 
         </div>
-        </div>
-        <?php 
-        include("./includes/footer.php")
+    </div>
+    <?php
+    include("./includes/footer.php")
         ?>
 
     <script src="./assets/js/home.js"></script>

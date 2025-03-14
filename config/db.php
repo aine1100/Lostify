@@ -1,5 +1,5 @@
 <?php
-require 'config.php';  // Ensure .env is loaded
+require_once 'config.php';  // Ensure .env is loaded
 
 try {
     // Retrieve database credentials
